@@ -1,0 +1,84 @@
+---
+- name: Install and Configure OpenLDAP on Ubuntu
+  hosts: ldap
+  become: yes
+  become_user: root
+  vars:
+    ansible_ssh_private_key_file: ~/.ssh/id_rsa
+    become_password: "your_sudo_password"  # Add the sudo password here
+  tasks:
+    - name: Ensure the server is up and running
+      ping:
+      ignore_errors: yes  # Optional: Ignore errors to proceed with playbook even if ping fails
+
+    - name: Update and upgrade the system
+      apt:
+        update_cache: yes
+        upgrade: yes
+        cache_valid_time: 3600  # 1 hour
+
+    - name: Install OpenLDAP server and client
+      apt:
+        name:
+          - slapd
+          - ldap-utils
+        state: present
+
+    - name: Configure slapd (OpenLDAP) by setting the root password
+      debconf:
+        name: slapd
+        question: "slapd/password1"
+        value: "your_ldap_password"
+        vtype: string
+
+    - name: Set LDAP domain
+      debconf:
+        name: slapd
+        question: "slapd/domain"
+        value: "us-central1-a.c.avid-elevator-438205-q4.internal"
+        vtype: string
+
+    - name: Set LDAP organization
+      debconf:
+        name: slapd
+        question: "slapd/organization"
+        value: "Avid Elevator Organization"
+        vtype: string
+
+    - name: Reconfigure slapd to apply settings
+      command: dpkg-reconfigure slapd
+
+    - name: Enable and start slapd service
+      systemd:
+        name: slapd
+        state: started
+        enabled: yes
+
+    - name: Add an initial LDAP entry (for the domain)
+      copy:
+        dest: /tmp/base.ldif
+        content: |
+          dn: dc=us-central1-a,dc=c,dc=avid-elevator-438205-q4,dc=internal
+          objectClass: dcObject
+          objectClass: organization
+          o: Avid Elevator Organization
+          dc: us-central1-a
+      notify:
+        - Add LDAP entries
+
+  handlers:
+    - name: Add LDAP entries
+      command: ldapadd -x -D "cn=admin,dc=us-central1-a,dc=c,dc=avid-elevator-438205-q4,dc=internal" -w your_ldap_password -f /tmp/base.ldif
+      become: yes
+      become_user: root
+      register: result
+      failed_when: result.rc != 0
+
+- name: Ensure the server is up and running (webservers group)
+  hosts: webservers
+  vars:
+    ansible_ssh_private_key_file: ~/.ssh/id_rsa  # Define private key location for webservers
+  tasks:
+    - name: Ping the server to ensure it's up and running
+      ping:  # Ensures the server is reachable
+
