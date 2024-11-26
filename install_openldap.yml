@@ -1,1 +1,30 @@
+---
+- name: Install and Configure OpenLDAP
+  hosts: localhost
+  become: yes
+  tasks:
+    - name: Install OpenLDAP server and client
+      dnf:
+        name:
+          - openldap
+          - openldap-clients
+          - openldap-servers
+        state: present
+
+    - name: Enable and start the OpenLDAP service
+      systemd:
+        name: slapd
+        state: started
+        enabled: yes
+
+    - name: Copy OpenLDAP configuration files
+      copy:
+        src: /path/to/local/ldap_config.ldif
+        dest: /etc/openldap/slapd.d/ldap_config.ldif
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Apply OpenLDAP configuration
+      command: ldapmodify -Y EXTERNAL -H ldapi:/// -f /etc/openldap/slapd.d/ldap_config.ldif
 
